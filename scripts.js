@@ -23,6 +23,8 @@ $(function () {
     var btn_prevmove = $('#btn_prevmove').click(game_prevmove);
     var btn_nextmove = $('#btn_nextmove').click(game_nextmove);
     var panel_gamearea = document.getElementById('panel_gamearea');
+    var lbl_cols = document.getElementById('lbl_cols');
+    var lbl_rows = document.getElementById('lbl_rows');
     var ai_msg = $('#ai_msg');
     var div_pb_outer = $('#div_pb_outer');    // Progress bar
     var div_pb_inner = $('#div_pb_inner');
@@ -90,13 +92,7 @@ $(function () {
         window.ksh_on_loaded_wasm = on_loaded_wasm;
     }
 
-    function server_start() {
-        set_panel_state(true);
-        btn_start.prop('disabled', false);
-        btn_restart.prop('disabled', false);
-        btn_undo.prop('disabled', false);
-        btn_showmoves.hide(0); btn_prevmove.hide(0); btn_nextmove.hide(0);
-
+    function draw_empty_board() {
         board = []; board_update_defer = []; board_history = [];
         move_cnt = 0;
         for (var i = 0; i < board_size; i++) {
@@ -104,9 +100,27 @@ $(function () {
             for (var j = 0; j < board_size; j++)
                 board[i].push({ empty: true });
         }
-
         init_board();
         render_board(null, null, true);
+    }
+
+    function server_start() {
+        set_panel_state(true);
+        btn_start.prop('disabled', false);
+        btn_restart.prop('disabled', false);
+        btn_undo.prop('disabled', false);
+        btn_showmoves.hide(0); btn_prevmove.hide(0); btn_nextmove.hide(0);
+
+        draw_empty_board();
+        panel_gamearea.classList.add('started');
+        tbl_board.classList.add('playing');
+        tbl_board.classList.remove('thinking');
+        set_options_enabled(false);
+    }
+
+    function set_options_enabled(enabled) {
+        $('input[name="ai-select"], input[name="ai-level"], input[name="play-first"]')
+            .prop('disabled', !enabled);
     }
 
     function new_piece(x, y, p, no) {
@@ -137,6 +151,7 @@ $(function () {
     var progress_on = false;
     function server_progress(time) {
         div_pb_inner.stop();
+        tbl_board.classList.toggle('thinking', time > 0);
         if (time > 0) {
             progress_on = true;
             btn_restart.prop('disabled', true);
@@ -148,7 +163,7 @@ $(function () {
         } else {
             progress_on = false;
             btn_restart.prop('disabled', false);
-            if (undo_remain > 0) btn_undo.prop('disabled', false);
+            btn_undo.prop('disabled', false);
             div_pb_inner.animate({ 'width': '100%', 'aria-valuenow': 100 }, { duration: 250, queue: false });
             div_pb_outer.animate({ 'opacity': 0 }, { duration: 300, queue: false });
         }
@@ -161,8 +176,7 @@ $(function () {
     }
     function server_undo_remain(remain) {
         undo_remain = remain;
-        btn_undo.text('Undo (' + remain + ')');
-        btn_undo.prop('disabled', remain === 0);
+        btn_undo.text('Undo');
     }
     function server_undo(x1, y1, x2, y2, xlast, ylast) {
         var up = [], defer = [];
@@ -189,6 +203,7 @@ $(function () {
             defer.push({ x: cmd[i], y: cmd[i + 1], change: { win_move: false } });
         }
         btn_undo.prop('disabled', true);
+        tbl_board.classList.remove('playing', 'thinking');
         render_board(up, defer);
         btn_showmoves.show(200);
     }
@@ -216,20 +231,24 @@ $(function () {
         socket_send('START ' + variant + ' ' + level + ' ' + pf);
     }
     function restart_game() {
+        tbl_board.classList.remove('playing', 'thinking');
         set_panel_state(false);
     }
     function undo_game() {
         socket_send('UNDO');
     }
     function set_panel_state(play) {
-        (!play ? $('#row_play') : $('#row_setting')).hide(400);
-        (play ? $('#row_play') : $('#row_setting')).show(400, function () {
-            if (play) {
-                $('html, body').animate({
-                    scrollTop: $("#row_play").offset().top
-                }, 200);
-            }
-        });
+        if (play) return;
+        // Config state: clear board, ready for a new game
+        if (ksh_send_input_string) btn_start.prop('disabled', false);
+        btn_restart.prop('disabled', true);
+        btn_undo.prop('disabled', true);
+        btn_showmoves.hide(0); btn_prevmove.hide(0); btn_nextmove.hide(0);
+        tbl_board.classList.remove('playing', 'thinking');
+        panel_gamearea.classList.remove('started');
+        set_options_enabled(true);
+        draw_empty_board();
+        game_status.text('Pick options, then Start.');
     }
     function game_showmoves() {
         btn_showmoves.hide(200);
@@ -268,62 +287,35 @@ $(function () {
     // END GAME
 
     // === BOARD ===
-    // Preset graphics
-    var svg_lines = [
-        '<line x1="50%" y1="0" x2="50%" y2="50%" style="stroke:rgb(110,110,110); stroke-width:2px;" />',
-        '<line x1="0" y1="50%" x2="50%" y2="50%" style="stroke:rgb(110,110,110); stroke-width:2px;" />',
-        '<line x1="50%" y1="50%" x2="50%" y2="100%" style="stroke:rgb(110,110,110); stroke-width:2px;" />',
-        '<line x1="50%" y1="50%" x2="100%" y2="50%" style="stroke:rgb(110,110,110); stroke-width:2px;" />',
-
-        '<line x1="35%" y1="50%" x2="65%" y2="50%" style="stroke:rgb(255,0,0); stroke-width:2px;" />' +
-        '<line x1="50%" y1="35%" x2="50%" y2="65%" style="stroke:rgb(255,0,0); stroke-width:2px;" />'
-    ];
-    var svg_circles = [
-        //'<circle cx="50%" cy="50%" r="32%" fill="#fff" />',
-        //'<circle cx="50%" cy="50%" r="32%" fill="#333" />'
-        '<use xlink:href="#white_piece" />',
-        '<use xlink:href="#black_piece" />'
-    ];
-    var svg_newmove = [
-        '<line x1="35%" y1="50%" x2="65%" y2="50%" style="stroke:#777; stroke-width:2px;" />' +
-        '<line x1="50%" y1="35%" x2="50%" y2="65%" style="stroke:#777; stroke-width:2px;" />',
-        '<line x1="35%" y1="50%" x2="65%" y2="50%" style="stroke:#e2e2e2; stroke-width:2px;" />' +
-        '<line x1="50%" y1="35%" x2="50%" y2="65%" style="stroke:#e2e2e2; stroke-width:2px;" />',
-    ];
-    var svg_number = [
-        '<text x="50%" y="52%" fill="#333" alignment-baseline="middle" text-anchor="middle" font-weight="bold">',
-        '<text x="50%" y="52%" fill="#fff" alignment-baseline="middle" text-anchor="middle" font-weight="bold">'
-    ];
-    var colors = ['#bbb', '#777', '#eee'];
+    var COL_LABELS = 'ABCDEFGHIJKLMNOPQRST';
+    var STAR_POINTS = { '3,3': 1, '3,11': 1, '7,7': 1, '11,3': 1, '11,11': 1 };
 
     var tbl_board = document.getElementById('tbl_board');
     var div_gamearea = document.getElementById('div_gamearea');
 
+    function is_star(x, y) {
+        return STAR_POINTS[x + ',' + y] === 1;
+    }
+
     function render_cell(x, y) {
         var cell = tbl_board.rows[x].cells[y];
         var data = board[x][y];
-        var svg = '<svg style="display: block; width: 100%; height: 100%;" ' +
-            'xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" ' +
-            'xmlns:xlink="http://www.w3.org/1999/xlink">';
+        var cls = 'cell';
+        if (is_star(x, y)) cls += ' star';
 
-        // Grid (lines)
-        if (x > 0) svg += svg_lines[0];
-        if (y > 0) svg += svg_lines[1];
-        if (x < board_size - 1) svg += svg_lines[2];
-        if (y < board_size - 1) svg += svg_lines[3];
-
-        // Inner content
-        if (!data.empty) {
-            if (data.piece) svg += svg_circles[data.piece - 1];
-            if (data.win_move) svg += svg_lines[4];
-            if (data.new_move) svg += svg_newmove[data.piece - 1];
-            if (data.piece && data.move_num && data.disp_num)
-                svg += svg_number[data.piece - 1] + data.move_num + '</text>';
+        if (data.empty) {
+            cell.className = cls + (data.undo_move ? ' undo' : ' empty');
+            cell.innerHTML = '';
+            return;
         }
-        if (data.undo_move) svg += svg_lines[4];
 
-        // Update node
-        cell.innerHTML = svg + '</svg>';
+        var pcls = 'piece p' + data.piece;
+        if (data.win_move) pcls += ' win';
+        if (data.new_move) cls += ' lastcell';
+        if (data.win_move) cls += ' wincell';
+        var num = (data.disp_num && data.move_num) ? '<span class="num">' + data.move_num + '</span>' : '';
+        cell.className = cls + ' filled';
+        cell.innerHTML = '<span class="' + pcls + '">' + num + '</span>';
     }
     function apply_update(up) {
         if (!up) return;
@@ -357,43 +349,48 @@ $(function () {
     }
 
     function init_board() {
-        // Automatically adjust display size
-        var container_size = panel_gamearea.offsetWidth - 32;
+        // Cell size: leave room for the coordinate strips, clamp for readability
+        var container_size = panel_gamearea.offsetWidth - 56;
+        var cell_size = Math.floor(container_size / board_size);
+        cell_size -= cell_size % 2;
+        if (cell_size < 20) cell_size = 20;
+        if (cell_size > 42) cell_size = 42;
 
-        // Control table size with cell size
-        var cell_width = Math.floor(container_size / board_size);
-        var cell_height = Math.floor(container_size / board_size);
+        // Column labels (A..O)
+        lbl_cols.innerHTML = '';
+        for (var c = 0; c < board_size; c++) {
+            var sc = document.createElement('span');
+            sc.style.width = cell_size + 'px';
+            sc.textContent = COL_LABELS[c];
+            lbl_cols.appendChild(sc);
+        }
 
-        // No more blurry
-        cell_width -= cell_width % 2;
-        cell_height -= cell_height % 2;
-
-        // Set containing div size
-        div_gamearea.style.width = cell_width * board_size + 'px';
-        div_gamearea.style.height = cell_height * board_size + 'px';
-
-        // Initialize tbl_board
-        tbl_board.innerHTML = "";
+        // Row labels (1..15)
+        lbl_rows.innerHTML = '';
         for (var r = 0; r < board_size; r++) {
+            var sr = document.createElement('span');
+            sr.style.height = cell_size + 'px';
+            sr.textContent = (r + 1);
+            lbl_rows.appendChild(sr);
+        }
+
+        // Board cells
+        tbl_board.innerHTML = '';
+        for (var br = 0; br < board_size; br++) {
             var row = tbl_board.insertRow();
-            for (var c = 0; c < board_size; c++) {
-                // New cell and data
+            for (var bc = 0; bc < board_size; bc++) {
                 var cell = row.insertCell();
-                cell.r = r; cell.c = c;
-                cell.board_data = 0;
-
-                // Style
-                cell.width = cell_width; cell.height = cell_height;
+                cell.r = br; cell.c = bc;
+                cell.style.width = cell_size + 'px';
+                cell.style.height = cell_size + 'px';
                 cell.style.padding = '0';
-                cell.style.verticalAlign = 'bottom';
-
-                // Handle click event
-                cell.addEventListener("click", tblBoardOnClick);
+                cell.addEventListener('click', tblBoardOnClick);
             }
         }
     }
 
     function tblBoardOnClick(e) {
+        if (!tbl_board.classList.contains('playing')) return;
         var r = e.currentTarget.r, c = e.currentTarget.c;
         socket_send("HM " + r + " " + c);
     }
@@ -431,6 +428,5 @@ $(function () {
         }
     });
 
-    $('#row_setting, #row_play').hide();
     set_panel_state(false);
 });
