@@ -163,7 +163,7 @@ $(function () {
         } else {
             progress_on = false;
             btn_restart.prop('disabled', false);
-            btn_undo.prop('disabled', false);
+            if (undo_remain > 0) btn_undo.prop('disabled', false);
             div_pb_inner.animate({ 'width': '100%', 'aria-valuenow': 100 }, { duration: 250, queue: false });
             div_pb_outer.animate({ 'opacity': 0 }, { duration: 300, queue: false });
         }
@@ -176,7 +176,8 @@ $(function () {
     }
     function server_undo_remain(remain) {
         undo_remain = remain;
-        btn_undo.text('Undo');
+        btn_undo.text('Undo (' + remain + ')');
+        btn_undo.prop('disabled', remain === 0);
     }
     function server_undo(x1, y1, x2, y2, xlast, ylast) {
         var up = [], defer = [];

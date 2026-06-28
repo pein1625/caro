@@ -129,6 +129,26 @@ a:hover { color: var(--p1a); text-decoration: none; }
 
 .btn-block { display: block; width: 100%; font-size: 18px; font-weight: 700; padding: 12px; }
 
+/* Restart styled like the Start Game button, a bit smaller */
+#btn_restart {
+    flex: 1 1 auto;
+    font-size: 16px;
+    font-weight: 800;
+    padding: 11px 24px;
+    border-radius: 10px;
+    color: #04140f;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 16px rgba(58, 169, 145, 0.4);
+}
+#btn_restart:hover:not(:disabled) {
+    color: #04140f;
+    background: var(--p1a);
+    border-color: var(--p1a);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 22px rgba(58, 169, 145, 0.55);
+}
+#btn_restart:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .controls .btn {
     flex: 1 1 auto;
