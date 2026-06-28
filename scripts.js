@@ -10,6 +10,13 @@ $(function () {
     var move_cnt = 0;
     var undo_remain = 0;
     var cur_reply_cnt = 0;
+    // touch: first tap highlights a cell, second tap on it confirms the move.
+    // Detected per-interaction via pointerType so hybrid (touch+mouse) works.
+    var is_touch = window.matchMedia
+        ? window.matchMedia('(hover: none), (pointer: coarse)').matches
+        : ('ontouchstart' in window);
+    var last_pointer_touch = false;
+    var pending_cell = null;
     // END VARS
 
     // === OBJECTS ===
@@ -23,8 +30,6 @@ $(function () {
     var btn_prevmove = $('#btn_prevmove').click(game_prevmove);
     var btn_nextmove = $('#btn_nextmove').click(game_nextmove);
     var panel_gamearea = document.getElementById('panel_gamearea');
-    var lbl_cols = document.getElementById('lbl_cols');
-    var lbl_rows = document.getElementById('lbl_rows');
     var ai_msg = $('#ai_msg');
     var div_pb_outer = $('#div_pb_outer');    // Progress bar
     var div_pb_inner = $('#div_pb_inner');
@@ -112,6 +117,7 @@ $(function () {
         btn_showmoves.hide(0); btn_prevmove.hide(0); btn_nextmove.hide(0);
 
         draw_empty_board();
+        pending_cell = null;
         panel_gamearea.classList.add('started');
         tbl_board.classList.add('playing');
         tbl_board.classList.remove('thinking');
@@ -288,7 +294,6 @@ $(function () {
     // END GAME
 
     // === BOARD ===
-    var COL_LABELS = 'ABCDEFGHIJKLMNOPQRST';
     var STAR_POINTS = { '3,3': 1, '3,11': 1, '7,7': 1, '11,3': 1, '11,11': 1 };
 
     var tbl_board = document.getElementById('tbl_board');
@@ -350,39 +355,17 @@ $(function () {
     }
 
     function init_board() {
-        // Cell size: leave room for the coordinate strips, clamp for readability
-        var container_size = panel_gamearea.offsetWidth - 56;
-        var cell_size = Math.floor(container_size / board_size);
-        cell_size -= cell_size % 2;
-        if (cell_size < 20) cell_size = 20;
-        if (cell_size > 42) cell_size = 42;
+        // Board fills 100% width (table-layout:fixed splits columns evenly);
+        // set cell height = column width so cells stay square.
+        var cell_size = Math.floor(panel_gamearea.clientWidth / board_size);
+        if (cell_size < 16) cell_size = 16;
 
-        // Column labels (A..O)
-        lbl_cols.innerHTML = '';
-        for (var c = 0; c < board_size; c++) {
-            var sc = document.createElement('span');
-            sc.style.width = cell_size + 'px';
-            sc.textContent = COL_LABELS[c];
-            lbl_cols.appendChild(sc);
-        }
-
-        // Row labels (1..15)
-        lbl_rows.innerHTML = '';
-        for (var r = 0; r < board_size; r++) {
-            var sr = document.createElement('span');
-            sr.style.height = cell_size + 'px';
-            sr.textContent = (r + 1);
-            lbl_rows.appendChild(sr);
-        }
-
-        // Board cells
         tbl_board.innerHTML = '';
         for (var br = 0; br < board_size; br++) {
             var row = tbl_board.insertRow();
             for (var bc = 0; bc < board_size; bc++) {
                 var cell = row.insertCell();
                 cell.r = br; cell.c = bc;
-                cell.style.width = cell_size + 'px';
                 cell.style.height = cell_size + 'px';
                 cell.style.padding = '0';
                 cell.addEventListener('click', tblBoardOnClick);
@@ -392,11 +375,41 @@ $(function () {
 
     function tblBoardOnClick(e) {
         if (!tbl_board.classList.contains('playing')) return;
+        if (progress_on) return;
         var r = e.currentTarget.r, c = e.currentTarget.c;
-        socket_send("HM " + r + " " + c);
+        if (!board[r][c].empty) return;
+
+        var touch = ('PointerEvent' in window) ? last_pointer_touch : is_touch;
+        if (touch) {
+            // first tap = highlight, second tap on same cell = play
+            if (pending_cell && pending_cell.r === r && pending_cell.c === c) {
+                clear_pending();
+                socket_send("HM " + r + " " + c);
+            } else {
+                set_pending(r, c);
+            }
+        } else {
+            socket_send("HM " + r + " " + c);
+        }
+    }
+    function set_pending(r, c) {
+        clear_pending();
+        pending_cell = { r: r, c: c };
+        tbl_board.rows[r].cells[c].classList.add('pending');
+    }
+    function clear_pending() {
+        if (!pending_cell) return;
+        var cell = tbl_board.rows[pending_cell.r].cells[pending_cell.c];
+        if (cell) cell.classList.remove('pending');
+        pending_cell = null;
     }
 
+    tbl_board.addEventListener('pointerdown', function (e) {
+        last_pointer_touch = (e.pointerType === 'touch' || e.pointerType === 'pen');
+    }, true);
+
     $(window).resize(function () {
+        pending_cell = null;
         init_board();
         rerender_all();
     });

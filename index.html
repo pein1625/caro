@@ -85,24 +85,11 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-h">Game Control</div>
-        <div class="card-b controls">
-          <button id="btn_restart" type="button" class="btn btn-primary" disabled="disabled">Restart</button>
-          <button id="btn_undo" type="button" class="btn btn-default" style="display:none" disabled="disabled">Undo</button>
-          <button id="btn_showmoves" type="button" style="display:none" class="btn btn-default">Show Moves</button>
-          <button id="btn_prevmove" type="button" style="display:none" class="btn btn-default">&lt;&lt;</button>
-          <button id="btn_nextmove" type="button" style="display:none" class="btn btn-default">&gt;&gt;</button>
-        </div>
-      </div>
-
     </aside>
 
     <main class="main">
       <div id="panel_gamearea" class="board-wrap">
         <div id="div_gamearea">
-          <div id="lbl_cols"></div>
-          <div id="lbl_rows"></div>
           <table id="tbl_board"></table>
         </div>
         <div id="board_overlay">
@@ -110,6 +97,14 @@
             Start Game
           </button>
         </div>
+      </div>
+
+      <div class="controls board-controls">
+        <button id="btn_restart" type="button" class="btn btn-primary" disabled="disabled">Restart</button>
+        <button id="btn_undo" type="button" class="btn btn-default" style="display:none" disabled="disabled">Undo</button>
+        <button id="btn_showmoves" type="button" style="display:none" class="btn btn-default">Show Moves</button>
+        <button id="btn_prevmove" type="button" style="display:none" class="btn btn-default">&lt;&lt;</button>
+        <button id="btn_nextmove" type="button" style="display:none" class="btn btn-default">&gt;&gt;</button>
       </div>
     </main>
 
